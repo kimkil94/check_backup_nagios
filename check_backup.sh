@@ -23,7 +23,8 @@ DATE=$(date +%Y-%m-%d)
 
 if [ ! -f ${LIST_FILE} ];then
     touch ${LIST_FILE} 
-    echo "File ${LIST_FILE} created." 
+    echo "File ${LIST_FILE} created."
+    exit 0 
 fi
 
 archive_test() {
