@@ -10,7 +10,8 @@
 #       OPTIONS:  ---
 #  REQUIREMENTS:  ---
 #          BUGS:  ---
-#         NOTES:  ---
+#         NOTES:  TODO - Add functionality that check only checksum of the file that is also copied to NAS. Do not check with gunzip \
+#		  again same file!! As sysadmin I want to know if file is correctly copied to NAS!
 #        AUTHOR:   (Kimkil), 
 #       COMPANY:  
 #       VERSION:  1.0
@@ -130,10 +131,12 @@ if [ "${err_count}" -gt "0" ];then
     echo "############################# SUMARRY ##################################"
     echo " -> ERROR -At least one Backup file is not correctly created!"
     echo "########################################################################"
+    exit 1
 else
     echo "########################################################################"
     echo "####################### SUMARRY ########################################"
     echo " -> OK - All backups are healthy! You are save! "
     echo "########################################################################"
+    exit 0
 fi
 
