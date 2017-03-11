@@ -2,11 +2,16 @@
 
 
 LIST_FILE="/opt/backup_files"
+DATE=$(date +%Y-%m-%d)
 
 if [ ! -f ${LIST_FILE} ];then
     touch ${LIST_FILE} 
     echo "File ${LIST_FILE} created." 
 fi
+
+string_replace() {
+    echo "${1/\*/$2}"
+}
 
 get_file_size(){
     local file=${1}
@@ -35,7 +40,9 @@ while read -r line; do
     [[ "$line" =~ ^#.*$ ]] && continue
     # put all columns to variables
     name=$(echo $line | awk '{print $1}' )
-    path_to_file=$(echo $line | awk '{print $2}')
+    path_to_file=$(echo "$line" | awk '{print $2}')
+    if [[ "$path_to_file" =~ *DAY* ]]; then
+        
     type_of_file=$(echo $line | awk '{print $3}')
     minimal_size=$(echo $line | awk '{print $4}')
 
@@ -50,10 +57,10 @@ while read -r line; do
         # if actual size is greater than or equal to minimal_size that is set in LIST_FILE
         if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
             echo "Backup :  ${name} is OK ; File : ${path_to_file} ; Type : ${type_of_file} ; Size :   ${actual_size}GB"
-            exit 0
+            return 0
         elif [ "${actual_size}" -lt "${minimal_size}" ]; then
             echo "Backup : ${name} is NOT OK ; File : ${path_to_file} ; Type : ${type_of_file} ; Size :  ${actual_size}GB"
-            exit 1
+            return 1
         fi
     # if minimal size of backup file is in MBs
     elif [[ "${minimal_size}" =~ MB$ ]]; then
@@ -64,7 +71,7 @@ while read -r line; do
             echo "Backup :  ${name} is OK ; File : ${path_to_file} ; Type : ${type_of_file} ; Size :   ${actual_size}GB"
         elif [ "${actual_size}" -lt "${minimal_size}" ]; then
             echo "Backup : ${name} is NOT OK ; File : ${path_to_file} ; Type : ${type_of_file} ; Size :  ${actual_size}GB"
-            exit 1
+            
         fi
     fi
 
