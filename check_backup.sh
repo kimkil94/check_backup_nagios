@@ -30,11 +30,12 @@ fi
 archive_test() {
     #only tar.gz files
     local file=${1}
-    if `gzip --test ${file} | tar t  >/dev/null 2>&1`; then
+    if `gunzip -c ${file} | tar t  >/dev/null 2>&1`; then
         echo -ne "\t -> Archive file $(basename ${file}) tested. - OK\n"
         return 0
     else
         echo -ne "\t -> Archive file $(basename ${file}) is NOT OK. TEST end with errors. - ERROR\n"
+        ((err_count++))
         return 1
     fi
 }
@@ -65,6 +66,7 @@ get_file_size(){
 }
 
 
+err_count="0"
 # read file that contain backup files and parameters
 while read -r line; do
     # read line by line, comments line will be ignored/ starting with # (^#)
@@ -79,36 +81,59 @@ while read -r line; do
     minimal_size=$(echo $line | awk '{print $4}')
 
     # if minimal size of backup file is in GBs
-    if [[ "${minimal_size}" =~ GB$ ]]; then
-        # get actual using get_file_size function  
-        actual_size=$(get_file_size ${path_to_file} "GB" )
-        # minimal_size without unit 
-        minimal_size=$(echo $line | awk '{print $4}' | sed 's/GB//g')
+    if [ -f ${path_to_file} ];then
+        if [[ "${minimal_size}" =~ GB$ ]]; then
+            # get actual using get_file_size function  
+            actual_size=$(get_file_size ${path_to_file} "GB" )
+            # minimal_size without unit 
+            minimal_size=$(echo $line | awk '{print $4}' | sed 's/GB//g')
 
-        echo "#####----------------------------------------------------------------------------------------------------------------------#####"
-        # if actual size is greater than or equal to minimal_size that is set in LIST_FILE
-        if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
-            echo "Backup :  ${name} is created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}GB -  OK"
+            echo "#####--------------------------------------------------------------------------------------------------------------------------#####"
+            # if actual size is greater than or equal to minimal_size that is set in LIST_FILE
+            if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
+                echo "Backup :  ${name} is created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}GB -> [OK]"
 
-            archive_test "${path_to_file}"
-        elif [ "${actual_size}" -lt "${minimal_size}" ]; then
-            echo "Backup : ${name} is NOT OK ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}GB -  ERROR"
-            return 1
+                if [ "${type_of_file}" = "tar.gz" ];then
+                    archive_test "${path_to_file}"
+                fi
+            elif [ "${actual_size}" -lt "${minimal_size}" ]; then
+                echo "Backup : ${name} not created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}GB -> [ERROR]"
+                ((err_count++))
+                return 1
+            fi
+            echo "#####--------------------------------------------------------------------------------------------------------------------------#####"
+        # if minimal size of backup file is in MBs
+        elif [[ "${minimal_size}" =~ MB$ ]]; then
+            actual_size=$(get_file_size ${path_to_file} "MB" )
+            minimal_size=$(echo $line | awk '{print $4}' | sed 's/MB//g')
+            echo "#####--------------------------------------------------------------------------------------------------------------------------#####"
+            if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
+                echo "Backup :  ${name} is created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}MB -> [OK]"
+                if [ "${type_of_file}" = "tar.gz" ];then
+                    archive_test "${path_to_file}"
+                fi
+
+            elif [ "${actual_size}" -lt "${minimal_size}" ]; then
+                echo "Backup : ${name} not created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}MB -> [ERROR]"
+                ((err_count++))
+            fi
+            echo "#####--------------------------------------------------------------------------------------------------------------------------#####"
         fi
-        echo "#####----------------------------------------------------------------------------------------------------------------------#####"
-    # if minimal size of backup file is in MBs
-    elif [[ "${minimal_size}" =~ MB$ ]]; then
-        actual_size=$(get_file_size ${path_to_file} "MB" )
-        minimal_size=$(echo $line | awk '{print $4}' | sed 's/MB//g')
-        echo "#####----------------------------------------------------------------------------------------------------------------------#####"
-        if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
-            echo "Backup :  ${name} is OK ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}MB -  OK"
-            archive_test "${path_to_file}"
-
-        elif [ "${actual_size}" -lt "${minimal_size}" ]; then
-            echo "Backup : ${name} is NOT OK ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}MB -  ERROR"
-            
-        fi
-        echo "#####----------------------------------------------------------------------------------------------------------------------#####"
+    else
+        echo "Backup : $name is NOT OK ; File: $(basename ${path_to_file}) does not exist! - ERROR"
+        ((err_count++))
     fi
 done < "${LIST_FILE}"
+
+if [ "${err_count}" -gt "0" ];then
+    echo "########################################################################"
+    echo "############################# SUMARRY ##################################"
+    echo " -> ERROR -At least one Backup file is not correctly created!"
+    echo "########################################################################"
+else
+    echo "########################################################################"
+    echo "####################### SUMARRY ########################################"
+    echo " -> OK - All backups are healthy! You are save! "
+    echo "########################################################################"
+fi
+
