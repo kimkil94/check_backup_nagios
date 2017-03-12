@@ -89,6 +89,22 @@ get_file_size(){
 }
 
 
+comp_sum_local_nas(){
+    local local_file=${1}
+    local nas_file=${2}
+    sum_local_file=$(md5sum ${local_file} | awk '{print $1}')
+    sum_nas_file=$(md5sum ${nas_file} | awk '{print $1}')
+    if [ "${sum_local_file}" = "${sum_nas_file}" ];then
+        echo "[DEBUG] SUMLOCAL= ${sum_local_file}"
+        echo "[DEBUG SUMNAS = ${sum_local_file}]" 
+       return 0
+   else
+       echo "[DEBUG] SUMLOCAL= ${sum_local_file}"
+        echo "[DEBUG SUMNAS = ${sum_local_file}]"  
+      return 1
+  fi 
+}
+
 err_count="0"
 # read file that contain backup files and parameters
 while read -r line; do
@@ -102,7 +118,10 @@ while read -r line; do
     fi    
     type_of_file=$(echo $line | awk '{print $3}')
     minimal_size=$(echo $line | awk '{print $4}')
-
+    nas_backup=$(echo $line | awk '{print $5}')
+    if [ "${nas_backup}" = "yes" ];then
+        nas_mount=$(echo $line | awk '{print $6}')
+    fi
     # if minimal size of backup file is in GBs
     if [ -f ${path_to_file} ];then
         if [[ "${minimal_size}" =~ GB$ ]]; then
@@ -115,13 +134,24 @@ while read -r line; do
             # if actual size is greater than or equal to minimal_size that is set in LIST_FILE
             if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
                 echo "Backup :  ${name} is created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}GB -> [OK]"
-
-                if [ "${type_of_file}" = "tar.gz" ];then
-                    archive_test "${path_to_file}"
-                    sum_and_save "${path_to_file}"
+                ##############################################
+                if [ ! "${nas_backup}" = "yes" ];then
+                    if [ "${type_of_file}" = "tar.gz" ];then
+                        archive_test "${path_to_file}"
+                        sum_and_save "${path_to_file}"
+                    else
+                        sum_and_save "${path_to_file}"
+                    fi
+                elif [ "${nas_backup}" = "yes" ];then
+                    if comp_sum_local_nas "${path_to_file}" "${nas_mount}$(basename ${path_to_file})" ;then
+                        echo "NAS backup for ${name} in place ${nas_mount}$(basename ${path_to_file})"
+                    else
+                        echo "Error NAS backup for ${name} not in place!"
+                    fi
                 else
-                    sum_and_save "${path_to_file}"
+                    exit 1
                 fi
+                ################################################ <-----------------
             elif [ "${actual_size}" -lt "${minimal_size}" ]; then
                 echo "Backup : ${name} not created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}GB -> [ERROR]"
                 ((err_count++))
@@ -135,13 +165,22 @@ while read -r line; do
             echo "#####--------------------------------------------------------------------------------------------------------------------------#####"
             if [ "${actual_size}" -gt "${minimal_size}"   ] || [ "${actual_size}" -eq "${minimal_size}" ]; then
                 echo "Backup :  ${name} is created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}MB -> [OK]"
-                if [ "${type_of_file}" = "tar.gz" ];then
-                    archive_test "${path_to_file}"
-                    sum_and_save "${path_to_file}"
+                if [ ! "${nas_backup}" = "yes" ];then
+                    if [ "${type_of_file}" = "tar.gz" ];then
+                        archive_test "${path_to_file}"
+                        sum_and_save "${path_to_file}"
+                    else
+                        sum_and_save "${path_to_file}"
+                    fi
+                elif [ "${nas_backup}" = "yes" ];then
+                    if comp_sum_local_nas "${path_to_file}" "${nas_mount}$(basename ${path_to_file})" ;then
+                        echo "NAS backup for ${name} in place ${nas_mount}$(basename ${path_to_file})"
+                    else
+                        echo "Error NAS backup for ${name} not in place!"
+                    fi
                 else
-                    sum_and_save "${path_to_file}"
+                    exit 1
                 fi
-
             elif [ "${actual_size}" -lt "${minimal_size}" ]; then
                 echo "Backup : ${name} not created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}MB -> [ERROR]"
                 ((err_count++))
