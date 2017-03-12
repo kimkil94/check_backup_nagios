@@ -21,11 +21,17 @@
 
 LIST_FILE="/opt/backup_files"
 DATE=$(date +%Y-%m-%d)
+SUMFILE="/opt/backup_files_checksums"
 
 if [ ! -f ${LIST_FILE} ];then
     touch ${LIST_FILE} 
     echo "File ${LIST_FILE} created."
     exit 0 
+fi
+
+if [ ! -f ${SUMFILE} ];then
+    touch ${SUMFILE} 
+    echo "File ${SUMFILE} created."
 fi
 
 archive_test() {
@@ -41,6 +47,22 @@ archive_test() {
     fi
 }
 
+sum_and_save() {
+    local sum_file=${1}
+    local checksum=""
+    if [ -f ${sum_file} ];then
+        checksum=$(md5sum ${sum_file} |awk '{print $1}')
+        if grep ${sum_file} ${SUMFILE} > /dev/null 2>&1 ;then
+            sum_for_replace=$(grep ${sum_file} ${SUMFILE} | awk '{print $1}')
+            sed -i "s/"${sum_for_replace}"/"${checksum}"/g" ${SUMFILE}
+        else
+            echo ${checksum} ${sum_file} >> ${SUMFILE}
+        fi
+    else
+        echo "File: $sum_file doesnt exist!"
+        ((err_count++))
+    fi
+}
 
 string_replace() {
     echo "${1/\*/$2}"
@@ -96,6 +118,9 @@ while read -r line; do
 
                 if [ "${type_of_file}" = "tar.gz" ];then
                     archive_test "${path_to_file}"
+                    sum_and_save "${path_to_file}"
+                else
+                    sum_and_save "${path_to_file}"
                 fi
             elif [ "${actual_size}" -lt "${minimal_size}" ]; then
                 echo "Backup : ${name} not created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :  ${actual_size}GB -> [ERROR]"
@@ -112,6 +137,9 @@ while read -r line; do
                 echo "Backup :  ${name} is created ; File : $(basename ${path_to_file}) ; Type : ${type_of_file} ; Size :   ${actual_size}MB -> [OK]"
                 if [ "${type_of_file}" = "tar.gz" ];then
                     archive_test "${path_to_file}"
+                    sum_and_save "${path_to_file}"
+                else
+                    sum_and_save "${path_to_file}"
                 fi
 
             elif [ "${actual_size}" -lt "${minimal_size}" ]; then
